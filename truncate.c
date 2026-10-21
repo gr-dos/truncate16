@@ -109,12 +109,13 @@ static int parse_size(const char *s)
             ;
         else if (p[0] != '\0')
             goto invalid;
-        while (power-- > 0) {
+        /* zero times any unit is zero, even one too large for a long */
+        while (n != 0 && power-- > 0) {
             if (mult > LONG_MAX / base)
                 goto toolarge;
             mult *= base;
         }
-        if (n != 0 && n > LONG_MAX / mult)
+        if (n > LONG_MAX / mult)
             goto toolarge;
         n *= mult;
     }

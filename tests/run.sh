@@ -61,6 +61,23 @@ mkfile MULTI2.DAT 5
 mkfile DASH.DAT 30
 mkfile -DASH.DAT 30
 mkfile BAD.DAT 50
+mkfile ZT.DAT 50
+mkfile ZQ.DAT 50
+mkfile ZYB.DAT 50
+mkfile ZEIB.DAT 50
+mkfile RDONLY.DAT 200
+chmod 444 RDONLY.DAT
+: > EMPTY0.DAT
+: > EMPTY1.DAT
+: > EMPTY2.DAT
+: > EMPTY3.DAT
+# sparse on the host, so they take no disk space
+truncate -s 2147483647 BIG1.DAT
+truncate -s 2147483000 BIG2.DAT
+truncate -s 2147483647 BIG3.DAT
+truncate -s 2147483647 BIG4.DAT
+truncate -s 2147483646 BIG5.DAT
+truncate -s 2147483647 BIG6.DAT
 
 cat > rc.bat <<'EOS'
 @echo off
@@ -162,6 +179,49 @@ truncate -s +2147483647 bad.dat >o38.txt
 call rc 38
 truncate -s 5 nodir\x.dat >o39.txt
 call rc 39
+rem --- zero with any unit
+truncate -s 0T zt.dat >o40.txt
+call rc 40
+truncate -s 0Q zq.dat >o41.txt
+call rc 41
+truncate -s 0YB zyb.dat >o42.txt
+call rc 42
+truncate -s 0EiB zeib.dat >o43.txt
+call rc 43
+rem --- read-only files fail even when nothing would change (as GNU)
+truncate -s ">100" rdonly.dat >o44.txt
+call rc 44
+truncate -c -s 10 rdonly.dat >o45.txt
+call rc 45
+rem --- later operands are processed after a failure
+truncate -s 5 nodir\x.dat after1.dat rdonly.dat after2.dat >o46.txt
+call rc 46
+rem --- existing empty files
+truncate -s 10 empty0.dat >o47.txt
+call rc 47
+truncate -s %%512 empty1.dat >o48.txt
+call rc 48
+truncate -s +0 empty2.dat >o49.txt
+call rc 49
+truncate -c -s -5 empty3.dat >o50.txt
+call rc 50
+rem --- arithmetic at the 2 GiB - 1 limit
+truncate -s +1 big1.dat >o51.txt
+call rc 51
+truncate -s %%2000000000 big2.dat >o52.txt
+call rc 52
+truncate -s -1 big3.dat >o53.txt
+call rc 53
+truncate -s /1073741824 big4.dat >o54.txt
+call rc 54
+truncate -s +1 big5.dat >o55.txt
+call rc 55
+truncate -s 2147483647 big6.dat >o56.txt
+call rc 56
+truncate -s 2147483648 bad.dat >o57.txt
+call rc 57
+truncate -s 2GiB bad.dat >o58.txt
+call rc 58
 EOS
 
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout 300 \
@@ -282,6 +342,33 @@ for n in 30 31 32 33 34 35 36 37 38 39; do
 done
 size 30 BAD.DAT 50
 check "step 31: no file created" test ! -e 5
+
+# zero with any unit
+for n in 40 41 42 43; do rc $n 0; done
+size 40 ZT.DAT 0; size 41 ZQ.DAT 0; size 42 ZYB.DAT 0; size 43 ZEIB.DAT 0
+
+# read-only files (root ignores the permission, so skip there)
+if [ "$(id -u)" != 0 ]; then
+    rc 44 1; size 44 RDONLY.DAT 200
+    rc 45 1; size 45 RDONLY.DAT 200
+    rc 46 1
+fi
+size 46 AFTER1.DAT 5; size 46 AFTER2.DAT 5
+
+# existing empty files
+rc 47 0; size 47 EMPTY0.DAT 10; content 47 EMPTY0.DAT 0
+rc 48 0; size 48 EMPTY1.DAT 0
+rc 49 0; size 49 EMPTY2.DAT 0
+rc 50 0; size 50 EMPTY3.DAT 0
+
+# arithmetic at the 2 GiB - 1 limit
+rc 51 1; size 51 BIG1.DAT 2147483647
+rc 52 1; size 52 BIG2.DAT 2147483000
+rc 53 0; size 53 BIG3.DAT 2147483646
+rc 54 0; size 54 BIG4.DAT 1073741824
+rc 55 0; size 55 BIG5.DAT 2147483647
+rc 56 0; size 56 BIG6.DAT 2147483647
+rc 57 1; rc 58 1; size 58 BAD.DAT 50
 
 # ------------------------------------------------------------------
 
