@@ -9,7 +9,8 @@ conventions of [hello16](https://github.com/gr-dos/hello16).
 
 `asm/` holds an experimental 8086 assembly version, `truncate.com`,
 which behaves the same and is 80% smaller (3,314 bytes against 16,184).
-`truncate.c` stays the reference and the default build. See
+`truncate.c` stays the reference and the default build; releases
+include both. See
 [asm/README.md](asm/README.md).
 
 ## Usage
@@ -142,9 +143,9 @@ they start at `0.01` and go `0.02`, `0.03`, ... `1.00`, `1.01`, and so on.
 
 `.github/workflows/release.yml` runs on every push to `main`, which (by
 rule 3) is always a PR merge. If `VERSION` names a version that has no
-`v<VERSION>` tag yet, it builds and tests `truncate.exe`, tags the merge
-commit `v<VERSION>`, and publishes a GitHub release with `truncate.exe`
-attached. If the version is unchanged, it does nothing. To release, bump
+`v<VERSION>` tag yet, it builds and tests `truncate.exe` and
+`asm/truncate.com`, tags the merge commit `v<VERSION>`, and publishes a
+GitHub release with both attached. If the version is unchanged, it does nothing. To release, bump
 `VERSION` in the PR.
 
 ## Files

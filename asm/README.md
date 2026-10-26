@@ -7,10 +7,11 @@ smaller `truncate` gets without the Watcom C runtime, and what it costs
 to keep two implementations in step. It follows the "C reference and
 assembly" layout of [hello16](https://github.com/gr-dos/hello16).
 
-`truncate.c` stays the reference. The top-level `make`, `make test`
-and the release workflow still build, test and ship only the Watcom
-`truncate.exe`. CI also runs `make -C asm test`, so the two versions
-cannot drift apart unnoticed.
+`truncate.c` stays the reference. The top-level `make` and `make test`
+still build and test only the Watcom `truncate.exe`. CI and the release
+workflow also run `make -C asm test`, so the two versions cannot drift
+apart unnoticed, and each release ships `truncate.com` alongside
+`truncate.exe`.
 
 ## Build and test
 
@@ -205,11 +206,10 @@ against 15.8 KB, 4 clusters against 16 on a 360 KB floppy), needs about
 a quarter of the memory, and matches the C version on every case
 tested, including the runtime's quirks.
 
-Keep `truncate.c` as the reference and default build. Releasing
-`truncate.com` alongside `truncate.exe` is a separate change: add
-`make -C asm test` to `release.yml` and attach `asm/truncate.com`, as
-hello16 does. It was left out here because the issue asks for the
-release to stay unchanged. The rule from hello16 applies: a PR that
+Keep `truncate.c` as the reference and default build. Releases attach
+`asm/truncate.com` next to `truncate.exe` (from 0.02), after
+`make -C asm test` passes, as hello16 does. The rule from hello16
+applies: a PR that
 changes `truncate.c` changes `asm/truncate.asm` in the same PR and adds
 `diff.sh` cases.
 
