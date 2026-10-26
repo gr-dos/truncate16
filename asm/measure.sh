@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Compare the Watcom truncate.exe with the assembly truncate.com: file
+# Compare the C truncate.exe with the assembly truncate.com: file
 # size, FAT12 allocation on the standard floppy formats (measured by
 # copying each file onto a freshly formatted image with mtools), and
 # the conventional memory DOS needs to load and run each program.

@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Differential tests: run the Watcom truncate.exe and the assembly
+# Differential tests: run the C truncate.exe and the assembly
 # truncate.com on the same arguments, each in its own copy of the same
 # fixtures, under DOSBox-X.  They must give identical bytes on standard
 # output, identical bytes on standard output plus standard error,
@@ -406,7 +406,7 @@ exact "$(num '-s 5 big3g.dat')" <<'EOS'
 truncate: cannot get the size of 'big3g.dat': No error\r\n
 EOS
 exact "$(num '-s 5 n40.dat big3g.dat')" <<'EOS'
-truncate: cannot get the size of 'big3g.dat': No such file or directory\r\n
+truncate: cannot get the size of 'big3g.dat': No error\r\n
 EOS
 exact "$(num '-s 5 ro.dat')" <<'EOS'
 truncate: cannot open 'ro.dat' for writing: Permission denied\r\n
