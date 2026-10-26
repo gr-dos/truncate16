@@ -5,7 +5,12 @@ Open Watcom.
 
 The resulting `truncate.exe` is a small-model, real-mode 8086
 executable that runs on any DOS from an original PC up. It follows the
-conventions of [dos-hello16](https://github.com/plicease/dos-hello16).
+conventions of [hello16](https://github.com/gr-dos/hello16).
+
+`asm/` holds an experimental 8086 assembly version, `truncate.com`,
+which behaves the same and is 80% smaller (3,314 bytes against 16,184).
+`truncate.c` stays the reference and the default build. See
+[asm/README.md](asm/README.md).
 
 ## Usage
 
@@ -118,7 +123,8 @@ checked. To add a test, add a step to `steps.bat` and the matching
 ### 5. CI must pass before merging
 
 `.github/workflows/ci.yml` builds and runs `make test` on every pull
-request and every push to `main`. Its `test` job is a required status
+request and every push to `main`. It also runs `make -C asm test`, which
+builds `asm/truncate.com` and tests it against `truncate.exe`. Its `test` job is a required status
 check, so a PR cannot be merged until it passes.
 
 ### 6. `--version` and the `VERSION` file
@@ -149,6 +155,8 @@ attached. If the version is unchanged, it does nothing. To release, bump
 - `tests/run.sh`: the test suite, run under DOSBox-X by `make test`
 - `.github/workflows/ci.yml`: build and test on PRs and pushes to `main`
 - `.github/workflows/release.yml`: tag and release when `VERSION` changes
+- `asm/`: the optional 8086 assembly version (`make -C asm`,
+  `make -C asm test`, `make -C asm measure`); see `asm/README.md`
 
 ## License
 
