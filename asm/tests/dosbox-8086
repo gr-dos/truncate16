@@ -1,0 +1,4 @@
+#!/bin/sh
+# DOSBox-X emulating an original 8086 (for DOSBOX= in the tests); an
+# instruction from a later CPU is an illegal opcode here.
+exec "${DOSBOX_REAL:-dosbox-x}" -set "cputype=8086" -set "core=normal" "$@"

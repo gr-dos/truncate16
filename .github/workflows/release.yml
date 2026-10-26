@@ -2,7 +2,7 @@ name: release
 
 # main only changes by merging a PR, so a push to main is a merge.
 # If VERSION names a version without a tag, tag the merge commit and
-# publish a release with truncate.exe attached.
+# publish a release with truncate.exe and truncate.com attached.
 
 on:
   push:
@@ -39,17 +39,18 @@ jobs:
         with:
           version: "2.0"
 
-      - name: Install DOSBox-X
+      - name: Install DOSBox-X, NASM and mtools
         if: steps.version.outputs.new == 'true'
         run: |
           sudo apt-get update
-          sudo apt-get install -y dosbox-x
+          sudo apt-get install -y dosbox-x nasm mtools
 
       - name: Build and test
         if: steps.version.outputs.new == 'true'
         run: |
           make
           make test
+          make -C asm test
 
       - name: Create release
         if: steps.version.outputs.new == 'true'
@@ -57,7 +58,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          gh release create "v$VERSION" truncate.exe \
+          gh release create "v$VERSION" truncate.exe asm/truncate.com \
             --target "$GITHUB_SHA" \
             --title "v$VERSION" \
             --generate-notes
