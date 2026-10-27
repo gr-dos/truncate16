@@ -1,14 +1,14 @@
 # truncate16
 
 A GNU coreutils compatible `truncate` for 16-bit MS-DOS, built with
-Open Watcom.
+Open Watcom and [libc16](https://github.com/gr-dos/libc16).
 
 The resulting `truncate.exe` is a small-model, real-mode 8086
 executable that runs on any DOS from an original PC up. It follows the
 conventions of [hello16](https://github.com/gr-dos/hello16).
 
 `asm/` holds an experimental 8086 assembly version, `truncate.com`,
-which behaves the same and is 80% smaller (3,314 bytes against 16,184).
+which behaves the same and is 42% smaller (3,294 bytes against 5,686).
 `truncate.c` stays the reference and the default build; releases
 include both. See
 [asm/README.md](asm/README.md).
@@ -66,24 +66,40 @@ missing operand, or a file that could not be opened or resized). With
 ### 1. Build and test on Linux with GNU make and Open Watcom
 
 Everything is built and tested on a Linux host, cross-compiling with the
-Linux-hosted Open Watcom toolchain driven by GNU make:
+Linux-hosted Open Watcom toolchain driven by GNU make, and linking with
+libc16 only (no Open Watcom runtime or headers):
 
     make         # builds truncate.exe
     make test    # runs the test suite under DOSBox-X
     make clean
 
-### 2. Watcom location
+### 2. libc16 and Open Watcom
 
-The `Makefile` uses the Open Watcom installation in `~/opt/watcom` by
-default. Point it somewhere else on the command line:
+`truncate.c` uses [libc16](https://github.com/gr-dos/libc16), a C
+runtime for small-model DOS programs, instead of Open Watcom's own, and
+the Open Watcom toolchain that libc16 pins. By default `make` runs
+`scripts/fetch-libc16`, which downloads the libc16 release pinned in
+that script (`libc16-VERSION.zip`), checks it against the SHA-256
+written there before unpacking it, and unpacks it into `build/libc16`.
+The release's `tools/fetch-watcom` then fetches the Open Watcom snapshot
+libc16 was built with into `build/tools`, also checked by SHA-256. This
+needs `curl`, `unzip`, `sha256sum` and `xz`. To move to a newer libc16,
+set `version` and `sha256` in `scripts/fetch-libc16` to the new
+release's (its `.sha256` asset), both in the same change (libc16's
+`docs/CONSUMERS.md`, "Using libc16").
 
-    make WATCOM=/path/to/watcom
-    make test WATCOM=/path/to/watcom
+To build against a local libc16 checkout instead (built with its own
+`make`, which stages the release layout in `build/stage`), point
+`LIBC16_ROOT` at it:
 
-The `Makefile` sets `INCLUDE` and puts `$(WATCOM)/binl64` and
-`$(WATCOM)/binl` on `PATH` itself, so there is no environment to source
-first. In CI, `open-watcom/setup-watcom` sets `WATCOM`, which overrides
-the default.
+    make LIBC16_ROOT=../libc16
+    make test LIBC16_ROOT=../libc16
+
+The compiler and linker flags are libc16's consumer flags (its
+`docs/ABI.md`): `wcc -zl -zld -x -ms -0 -s -bt=dos`, with only libc16's
+headers, and `wlink option nodefaultlibs`. A function libc16 does not
+provide is a link error. libc16 has no `printf`; the program writes with
+`fputs` and formats numbers with `libc16_ltoa` (libc16's `libc16.h`).
 
 ### 3. `main` is protected
 
@@ -151,7 +167,8 @@ GitHub release with both attached. If the version is unchanged, it does nothing.
 ## Files
 
 - `truncate.c`: the program
-- `Makefile`: Open Watcom build (`make`, `make test`, `make clean`)
+- `Makefile`: Open Watcom and libc16 build (`make`, `make test`, `make clean`)
+- `scripts/fetch-libc16`: fetches and builds the pinned libc16
 - `VERSION`: the version, compiled in and printed by `--version`
 - `tests/run.sh`: the test suite, run under DOSBox-X by `make test`
 - `.github/workflows/ci.yml`: build and test on PRs and pushes to `main`

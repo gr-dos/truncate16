@@ -1,9 +1,11 @@
 /*
  * truncate - shrink or extend the size of a file to the specified size
  *
- * A GNU coreutils compatible truncate for 16-bit MS-DOS (Open Watcom C).
+ * A GNU coreutils compatible truncate for 16-bit MS-DOS (Open Watcom C
+ * with libc16).
  */
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,6 +14,7 @@
 #include <fcntl.h>
 #include <io.h>
 #include <sys/stat.h>
+#include <libc16.h>
 
 #ifndef VERSION
 #define VERSION   "unknown"
@@ -32,9 +35,20 @@ static long size_val = 0;
 
 static const char *progname = "truncate";
 
+/* Writes the strings, up to a null pointer, to fp. */
+static void put(FILE *fp, const char *s, ...)
+{
+    va_list ap;
+
+    va_start(ap, s);
+    for (; s != NULL; s = va_arg(ap, const char *))
+        fputs(s, fp);
+    va_end(ap);
+}
+
 static void usage(FILE *fp)
 {
-    fprintf(fp,
+    fputs(
         "Usage: truncate OPTION... FILE...\n"
         "Shrink or extend the size of each FILE to the specified size.\n"
         "\n"
@@ -55,12 +69,12 @@ static void usage(FILE *fp)
         "\n"
         "SIZE may also be prefixed by one of the following modifying characters:\n"
         "'+' extend by, '-' reduce by, '<' at most, '>' at least,\n"
-        "'/' round down to multiple of, '%%' round up to multiple of.\n");
+        "'/' round down to multiple of, '%' round up to multiple of.\n", fp);
 }
 
 static void try_help(void)
 {
-    fprintf(stderr, "Try 'truncate --help' for more information.\n");
+    fputs("Try 'truncate --help' for more information.\n", stderr);
 }
 
 /* Parse SIZE into size_mod and size_val.  Returns 0 on success, or
@@ -121,18 +135,18 @@ static int parse_size(const char *s)
     }
 
     if (n == 0 && (size_mod == MOD_ROUNDDN || size_mod == MOD_ROUNDUP)) {
-        fprintf(stderr, "%s: division by zero\n", progname);
+        put(stderr, progname, ": division by zero\n", NULL);
         return -1;
     }
     size_val = (long)n;
     return 0;
 
 invalid:
-    fprintf(stderr, "%s: Invalid number: '%s'\n", progname, s);
+    put(stderr, progname, ": Invalid number: '", s, "'\n", NULL);
     return -1;
 toolarge:
-    fprintf(stderr, "%s: Invalid number: '%s': Value too large\n",
-            progname, s);
+    put(stderr, progname, ": Invalid number: '", s, "': Value too large\n",
+        NULL);
     return -1;
 }
 
@@ -165,6 +179,7 @@ static int truncate_one(const char *name)
 {
     int fd, flags = O_RDWR | O_BINARY;
     long fsize, nsize;
+    char nbuf[12];
 
     if (!opt_no_create)
         flags |= O_CREAT;
@@ -172,34 +187,35 @@ static int truncate_one(const char *name)
     if (fd < 0) {
         if (opt_no_create && errno == ENOENT)
             return 0;
-        fprintf(stderr, "%s: cannot open '%s' for writing: %s\n",
-                progname, name, strerror(errno));
+        put(stderr, progname, ": cannot open '", name, "' for writing: ",
+            strerror(errno), "\n", NULL);
         return 1;
     }
 
     fsize = filelength(fd);
     if (fsize < 0) {
-        fprintf(stderr, "%s: cannot get the size of '%s': %s\n",
-                progname, name, strerror(errno));
+        put(stderr, progname, ": cannot get the size of '", name, "': ",
+            strerror(errno), "\n", NULL);
         close(fd);
         return 1;
     }
     nsize = new_size(fsize);
     if (nsize < 0) {
-        fprintf(stderr, "%s: overflow extending size of file '%s'\n",
-                progname, name);
+        put(stderr, progname, ": overflow extending size of file '", name,
+            "'\n", NULL);
         close(fd);
         return 1;
     }
     if (nsize != fsize && chsize(fd, nsize) != 0) {
-        fprintf(stderr, "%s: failed to truncate '%s' at %ld bytes: %s\n",
-                progname, name, nsize, strerror(errno));
+        put(stderr, progname, ": failed to truncate '", name, "' at ",
+            libc16_ltoa(nsize, nbuf, 10), " bytes: ", strerror(errno), "\n",
+            NULL);
         close(fd);
         return 1;
     }
     if (close(fd) != 0) {
-        fprintf(stderr, "%s: failed to close '%s': %s\n",
-                progname, name, strerror(errno));
+        put(stderr, progname, ": failed to close '", name, "': ",
+            strerror(errno), "\n", NULL);
         return 1;
     }
     return 0;
@@ -210,6 +226,7 @@ int main(int argc, char **argv)
     int i, nfiles = 0, endopts = 0, have_size = 0;
     int rc = 0;
     const char *arg;
+    char opt[2] = { 0, 0 };
 
     for (i = 1; i < argc; i++) {
         const char *a = argv[i];
@@ -230,8 +247,8 @@ int main(int argc, char **argv)
                     arg = argv[++i];
                     argv[i] = NULL;
                 } else {
-                    fprintf(stderr, "%s: option '--size' requires an "
-                            "argument\n", progname);
+                    put(stderr, progname, ": option '--size' requires an "
+                        "argument\n", NULL);
                     try_help();
                     return 1;
                 }
@@ -242,10 +259,11 @@ int main(int argc, char **argv)
                 usage(stdout);
                 return 0;
             } else if (strcmp(a, "--version") == 0) {
-                printf("truncate (dos-truncate16) %s\n", VERSION);
+                fputs("truncate (dos-truncate16) " VERSION "\n", stdout);
                 return 0;
             } else {
-                fprintf(stderr, "%s: unrecognized option '%s'\n", progname, a);
+                put(stderr, progname, ": unrecognized option '", a, "'\n",
+                    NULL);
                 try_help();
                 return 1;
             }
@@ -261,8 +279,8 @@ int main(int argc, char **argv)
                     arg = argv[++i];
                     argv[i] = NULL;
                 } else {
-                    fprintf(stderr, "%s: option requires an argument "
-                            "-- 's'\n", progname);
+                    put(stderr, progname, ": option requires an argument "
+                        "-- 's'\n", NULL);
                     try_help();
                     return 1;
                 }
@@ -276,7 +294,9 @@ int main(int argc, char **argv)
                 usage(stdout);
                 return 0;
             default:
-                fprintf(stderr, "%s: invalid option -- '%c'\n", progname, *a);
+                opt[0] = *a;
+                put(stderr, progname, ": invalid option -- '", opt, "'\n",
+                    NULL);
                 try_help();
                 return 1;
             }
@@ -284,12 +304,12 @@ int main(int argc, char **argv)
     }
 
     if (!have_size) {
-        fprintf(stderr, "%s: you must specify '--size'\n", progname);
+        put(stderr, progname, ": you must specify '--size'\n", NULL);
         try_help();
         return 1;
     }
     if (nfiles == 0) {
-        fprintf(stderr, "%s: missing file operand\n", progname);
+        put(stderr, progname, ": missing file operand\n", NULL);
         try_help();
         return 1;
     }

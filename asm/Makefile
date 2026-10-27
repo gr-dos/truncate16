@@ -2,7 +2,7 @@
 # Not part of the default build: run from the top with "make -C asm".
 #   make -C asm            builds truncate.com
 #   make -C asm test       runs ../tests/run.sh and the differential
-#                          tests against the Watcom truncate.exe
+#                          tests against the C truncate.exe
 #   make -C asm measure    prints the size / FAT / memory comparison
 
 NASM   ?= nasm
@@ -21,8 +21,8 @@ tests/err2out.com: tests/err2out.asm
 tests/tail.com: tests/tail.asm
 	$(NASM) $(NFLAGS) -o $@ tests/tail.asm
 
-# The Watcom reference, built by the unchanged top-level Makefile
-# (WATCOM= on this command line is passed down).
+# The C reference, built by the top-level Makefile (LIBC16_ROOT= on
+# this command line is passed down).
 ../truncate.exe: FORCE
 	$(MAKE) -C .. truncate.exe
 

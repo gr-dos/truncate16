@@ -2,3 +2,5 @@
 *.obj
 *.err
 *.exe
+*.map
+/build/

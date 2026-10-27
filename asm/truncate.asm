@@ -3,7 +3,7 @@
 ; 8086 assembly version of truncate.c for MS-DOS, built as a .COM with
 ; NASM, using only DOS 2.0 calls.  truncate.c is the specification: the
 ; options, size arithmetic, messages and exit status are the same, and
-; so are the parts of the Watcom C runtime that show through (argument
+; so are the parts of its C runtime, libc16, that show through (argument
 ; splitting, errno and its messages, and how chsize extends a file).
 ;
 ; Build: nasm -f bin -DVERSION='"0.01"' -o truncate.com truncate.asm
@@ -21,9 +21,11 @@ STACK   equ     512
 MAXARGS equ     64              ; the most a 127-byte command tail holds
 ZEROS   equ     512             ; chsize writes zeros 512 bytes at a time
 
-; errno values of the Watcom C runtime
-ENOENT  equ     1
-ENOSPC  equ     12
+; errno values of libc16
+ENOENT  equ     2
+EACCES  equ     13
+EEXIST  equ     17
+ENOSPC  equ     28
 
         section .text
 
@@ -179,16 +181,13 @@ nomem:  mov     dx, m_nomem
         jmp     fail
 
 ;
-; Split the command tail into argv the way the Open Watcom C startup
-; does (found by testing its build; see asm/README.md):
+; Split the command tail into argv the way libc16 does for
+; truncate.exe, which is Microsoft C's rule (see asm/README.md):
 ;   - blanks (space, tab) separate arguments; leading ones are skipped;
 ;   - " toggles quoting and is removed; blanks inside quotes are kept;
-;   - a lone \ before " makes it a literal " (the \ is dropped);
-;   - a run of n >= 2 backslashes before " gives n - 1 backslashes and
-;     a toggle (not the Microsoft parity rule);
+;   - a run of 2n backslashes before " gives n backslashes and a
+;     toggle; 2n + 1 give n backslashes and a literal ";
 ;   - any other \ is literal.
-; Only the byte before a \ that precedes " needs checking: every earlier
-; \ in the run has already been copied as a literal.  AH holds it.
 ;
 split:
         mov     si, 81h
@@ -212,21 +211,40 @@ split:
         inc     bx
         inc     bx
         xor     dl, dl                  ; DL = 1 inside quotes
-        mov     al, ' '
 .char:  jcxz    .end
-        mov     ah, al
         lodsb
         dec     cx
         cmp     al, '\'
         jne     .notbs
-        jcxz    .copy
-        cmp     byte [si], '"'
-        jne     .copy
-        cmp     ah, '\'                 ; \\" : the " is a toggle
-        je      .char
-        movsb                           ; \"  : a literal "
+        mov     ah, 1                   ; AH = backslashes in the run
+.run:   jcxz    .lit
+        lodsb
+        cmp     al, '\'
+        jne     .runend
         dec     cx
-        mov     al, '"'
+        inc     ah
+        jmp     .run
+.runend:
+        dec     si                      ; leave the byte after the run
+        cmp     al, '"'
+        jne     .lit
+        shr     ah, 1                   ; AH = n
+        sbb     dh, dh                  ; DH = -1 for 2n + 1
+        mov     al, '\'
+.half:  test    ah, ah
+        jz      .quote
+        stosb
+        dec     ah
+        jmp     .half
+.quote: test    dh, dh
+        jz      .char                   ; 2n: the " toggles, read next
+        movsb                           ; 2n + 1: a literal "
+        dec     cx
+        jmp     .char
+.lit:   mov     al, '\'                 ; no " follows: all literal
+.lits:  stosb
+        dec     ah
+        jnz     .lits
         jmp     .char
 .notbs: cmp     al, '"'
         jne     .notq
@@ -449,19 +467,20 @@ truncate_one:
         mov     ax, 3D02h               ; open for reading and writing
         int     21h
         jnc     .opened
-        call    set_errno
         cmp     byte [no_create], 0
         jne     .nocreate
-        cmp     ax, 2                   ; file not found: create it
-        jne     .openfail
+        cmp     ax, 2                   ; file not found: create it,
+        jne     .seterr                 ; leaving errno as it was
         mov     dx, [arg]
         xor     cx, cx
         mov     ah, 3Ch
         int     21h
         jnc     .opened
+.seterr:
         call    set_errno
         jmp     .openfail
 .nocreate:
+        call    set_errno
         cmp     byte [errno], ENOENT    ; -c: a missing file is no error
         je      .ret
 .openfail:
@@ -508,8 +527,8 @@ truncate_one:
 .write: mov     dx, zeros
         mov     ah, 40h
         int     21h
-        jc      .nospace
-        cmp     ax, cx
+        jc      .truncerr
+        cmp     ax, cx                  ; a short write: the disk is full
         jne     .nospace
         sub     di, cx
         sbb     si, 0
@@ -518,7 +537,7 @@ truncate_one:
         jnz     .ext
         jmp     .close
 .nospace:
-        mov     byte [errno], ENOSPC    ; whatever DOS said
+        mov     byte [errno], ENOSPC
         jmp     .truncfail
 .shrink:
         mov     dx, [nsize]             ; seek to the new size and
@@ -646,14 +665,13 @@ new_size:
         mov     dx, [fsize + 2]         ; CF is clear from or
         ret
 
-; Store the errno the Watcom runtime would set for DOS error AX.
-; Keeps AX.
+; Store the errno libc16 sets for DOS error AX.  Keeps AX.
 set_errno:
         push    bx
         cmp     ax, 50h
-        mov     bl, 7                   ; EEXIST
+        mov     bl, EEXIST
         je      .set
-        mov     bl, -1
+        mov     bl, EACCES
         cmp     ax, doserr_len
         jae     .set
         mov     bx, ax
@@ -787,29 +805,26 @@ write:  jcxz    .ret                    ; CX bytes at DX to handle BX
 
         section .data
 
-; errno for DOS errors 0 to 21h, as the Watcom runtime maps them
-; (-1 is its "unknown error")
-doserr: db      0, 9, 1, 1, 11, 6, 4, 5, 5, 5, 2, 3, -1, 14, 7, 36
-        db      6, 8, 1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
-        db      6, 6
+; errno for DOS errors 0 to 18, as libc16 maps them (80 is EEXIST and
+; any other is EACCES)
+doserr: db      13, 22, 2, 2, 24, 13, 9, 12, 12, 22, 7, 8, 22, 22, 13, 2
+        db      13, 18, 2
 doserr_len equ  $ - doserr
 
 ; strerror for each errno above: the errno, then the message
 errors: db      0, 'No error', 0
-        db      1, 'No such file or directory', 0
-        db      2, 'Arg list too big', 0
-        db      3, 'Exec format error', 0
-        db      4, 'Bad file number', 0
-        db      5, 'Not enough memory', 0
-        db      6, 'Permission denied', 0
-        db      7, 'File exists', 0
-        db      8, 'Cross-device link', 0
-        db      9, 'Invalid argument', 0
-        db      11, 'Too many open files', 0
-        db      12, 'No space left on device', 0
-        db      14, 'Result too large', 0
-        db      36, 'No such device', 0
-        db      -1, 'unknown error', 0
+        db      2, 'No such file or directory', 0
+        db      7, 'Arg list too long', 0
+        db      8, 'Exec format error', 0
+        db      9, 'Bad file number', 0
+        db      12, 'Not enough memory', 0
+        db      13, 'Permission denied', 0
+        db      17, 'File exists', 0
+        db      18, 'Cross-device link', 0
+        db      22, 'Invalid argument', 0
+        db      24, 'Too many open files', 0
+        db      28, 'No space left on device', 0
+        db      -1, 'Unknown error', 0
 
 ; size modifiers, and units with their powers (indexed from the end)
 mods:   db      '+-<>/%'
